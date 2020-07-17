@@ -126,7 +126,7 @@ class Controller():
         # these
 
         def create_iterator_buttons(names):
-            with output:
+            with Display.output:
                 next = widgets.Button(description="Next")
                 prev = widgets.Button(description="Prev")
                 
