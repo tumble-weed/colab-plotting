@@ -7,6 +7,47 @@ import ipywidgets as widgets
 from IPython import display
 global debug_dict
 debug_dict = {}
+
+class PlottingCallbacks_():
+    def _get_default_cb(callback_utils,self,k,f):
+        def cb():
+            print(k,self.counters[k][0])
+            assets_k = self.assets[k][self.counters[k][0]]
+            f(k,*assets_k['args'],**assets_k['kwargs'])
+            self.pointers[k] = self.counters[k][0]
+            pass
+        return cb    
+    pass
+
+
+    def _get_history_cb(callback_utils,self,k,f):
+        def cb():
+            print(k,self.counters[k][0])
+            assets_till_k = self.assets[k][:self.counters[k][0] + 1]
+            args_till_k = [asset['args'] for asset in assets_till_k]
+            assets_k = self.assets[k][self.counters[k][0]]
+            f(k,*args_till_k,**assets_k['kwargs'])
+            self.pointers[k] = self.counters[k][0]
+            pass
+        return cb    
+    pass
+
+    def _get_cb(callback_utils,self,k,name):
+        if hasattr(PyPlot,name):
+            f = getattr(PyPlot,name)
+            return callback_utils._get_default_cb(self,k,f)
+        print(self.custom_plots.keys())
+        if name in self.custom_plots:
+            f=  self.custom_plots[name]['callable']
+            type_ = self.custom_plots[name]['type_']
+            if type_  == 'default':
+                return callback_utils._get_default_cb(self,k,f)
+            if type_  == 'history':
+                return callback_utils._get_history_cb(self,k,f)
+        assert False,f'{name} plotting function not found'
+PlottingCallbacks = PlottingCallbacks_()
+#--------------------
+
 class Display_():
     registered_containers = []
     def __init__(self):
@@ -50,6 +91,7 @@ class Controller_():
         self.callbacks = {}
         self.cb_stack = []
         self.pointers = {}
+        self.custom_plots = {}
         Display.register_container(self)
         pass
     # @classmethod
@@ -69,27 +111,39 @@ class Controller_():
         Display.display()
         self.cb_stack = []
 
+    #---------------------
+    def register_custom_plot(self,name,f,type_='default'):
+        # if type_ == 'default':
+        self.custom_plots[name] = {'callable':f,'type_':type_}
+    pass
+    def is_plot(self,attr):
+        if hasattr(PyPlot,attr):
+            return True
+        #---------------------
+        if 'custom_plots' in self.__dict__:
+            if (attr in self.custom_plots):
+                return True
+        #---------------------
+        return False
+
+    #--------------------
+
     def __getattr__(self,attr):
       if attr in self.__dict__:
         return self.__dict__[attr]
-      if hasattr(PyPlot,attr):
-        plt_fn_name = attr
-        def append_and_register_cb(*args,**kwargs):
-          k = args[0]
-          args = args[1:]
-          self.assets[k].append({'args':args,'kwargs':kwargs})
-          #---------------------------
-        #   plt_fn = getattr(plt,attr)
-          def cb():
-            print(k,self.counters[k][0])
-            assets_k = self.assets[k][self.counters[k][0]]
-            getattr(PyPlot,plt_fn_name)(k,*assets_k['args'],**assets_k['kwargs'])
-            self.pointers[k] = self.counters[k][0]
-            pass
-          self.callbacks[k] = cb
-          #---------------------------
-        return append_and_register_cb
-      raise Exception
+      if self.is_plot(attr):
+        plot_fn_name = attr
+        def lazy_call(*args,**kwargs):
+            k = args[0]
+            args = args[1:]
+            self.assets[k].append({'args':args,'kwargs':kwargs})
+            cb = PlottingCallbacks._get_cb(self,k,plot_fn_name)
+            if cb is None:
+                import pdb;pdb.set_trace()
+            self.callbacks[k] = cb
+        return lazy_call
+    #   assert False,f'{attr} not found'
+      raise AttributeError
       pass
     """
     def imshow(self,imshow_dict):
@@ -201,12 +255,13 @@ class Controller_():
 Controller = Controller_()
 #-----------------------------------------------
 class  PyPlot_():
-    axes_dict = {}
+    # axes_dict = {}
     def __init__(self):
         self.initialize()
         
     def initialize(self):
         self.axes_dict = {}
+        self.other_plotters = {}
         Display.register_container(self)
         pass      
 
@@ -220,7 +275,13 @@ class  PyPlot_():
             self.subplots(name,nrows=1,ncols=1,**kwargs)
         pass
 
-
+    def register_custom_plotter(self,name,plotter):
+        def bound(*args,**kwargs):
+            name = args[0]
+            args = args[1:]
+            return plotter(self,name,*args,**kwargs)
+        self.other_plotters[name] = bound
+    pass
     def subplots(self,*axes,nrows=None,ncols=None,**kwargs):
         axes_names = axes
         if nrows is None and ncols is None:
@@ -253,12 +314,16 @@ class  PyPlot_():
     def __getattr__(self,attr):
       if attr in self.__dict__:
         return self.__dict__[attr]
+      if 'other_plotters' in self.__dict__:
+          if attr in self.other_plotters:
+              return self.other_plotters[attr]
       if hasattr(plt,attr):
         plt_fn_name = attr
         # plt_fn = plt.__dict__[attr]
         
         return self.wrap_pyplot_method(attr)
-      raise Exception
+    #   assert False,f'{attr} not found'
+      raise AttributeError
       pass
     """
     def imshow(self,imshow_dict):
@@ -323,4 +388,20 @@ PyPlot = PyPlot_()
 # def wrapped():
 #   pass
 
-
+def inkblot(axes_name,*args,**kwargs):
+    """
+    to be registered with
+    """
+    ax = PyPlot.axes_dict[axes_name]
+    ax.clear()
+    xys = args
+    c = kwargs.get('c','r')
+    max_alpha = 1.
+    n_pairs = len(xys)
+    step = max_alpha/n_pairs
+    alphas = np.arange(1.,0.,-step)[::-1]
+    for xy,a in zip(xys,alphas):
+        x,y = xy
+        ax.scatter(x,y,c=c,alpha=a)
+    plt.draw()
+    pass
