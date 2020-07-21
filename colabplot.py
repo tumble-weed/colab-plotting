@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from collections import defaultdict
 import ipywidgets as widgets
 from IPython import display
+import numpy as np
 global debug_dict
 debug_dict = {}
 
