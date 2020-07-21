@@ -36,7 +36,7 @@ class PlottingCallbacks_():
         if hasattr(PyPlot,name):
             f = getattr(PyPlot,name)
             return callback_utils._get_default_cb(self,k,f)
-        print(self.custom_plots.keys())
+#         print(self.custom_plots.keys())
         if name in self.custom_plots:
             f=  self.custom_plots[name]['callable']
             type_ = self.custom_plots[name]['type_']
