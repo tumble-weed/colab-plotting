@@ -308,6 +308,7 @@ class  PyPlot_():
         #   plt.sca(ax)
           plt_fn = getattr(ax,plt_fn_name)
           plt_fn(*args,**kwargs)
+	  plt.title(name)
           plt.draw()
           #ax.imshow(*stuff)
         return wrapped
