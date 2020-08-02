@@ -7,14 +7,15 @@ import ipywidgets as widgets
 from IPython import display
 import numpy as np
 global debug_dict
+from termcolor import colored
 debug_dict = {}
 
 class PlottingCallbacks_():
     def _get_default_cb(callback_utils,self,k,f):
-        def cb():
+        def cb(**kwargs):
             print(k,self.counters[k][0])
             assets_k = self.assets[k][self.counters[k][0]]
-            f(k,*assets_k['args'],**assets_k['kwargs'])
+            f(k,*assets_k['args'],**dict(**assets_k['kwargs'],**kwargs))
             self.pointers[k] = self.counters[k][0]
             pass
         return cb    
@@ -22,12 +23,12 @@ class PlottingCallbacks_():
 
 
     def _get_history_cb(callback_utils,self,k,f):
-        def cb():
+        def cb(**kwargs):
             print(k,self.counters[k][0])
             assets_till_k = self.assets[k][:self.counters[k][0] + 1]
             args_till_k = [asset['args'] for asset in assets_till_k]
             assets_k = self.assets[k][self.counters[k][0]]
-            f(k,*args_till_k,**assets_k['kwargs'])
+            f(k,*args_till_k,**assets_k['kwargs'],**kwargs)
             self.pointers[k] = self.counters[k][0]
             pass
         return cb    
@@ -230,7 +231,15 @@ class Controller_():
                                 counter[0] = counter[0] % limit
                             if n in self.callbacks:
                                 print(f'adding callback for {n}')
-                                self.cb_stack.append(self.callbacks[n])
+                                '''
+                                def cb():
+                                    # print(colored(f'for {n}','green'))
+                                    self.callbacks[n]()#(title=f'{n}_{counter[0]}')
+                                '''
+                                # cb = self.callbacks[n]
+                                cb = lambda n=n,self=self,counter=counter:self.callbacks[n](title=f'{n}_{counter[0]}')
+                                # cb =lambda:print('hi')
+                                self.cb_stack.append(cb)
 
                         self.flush_cb_stack()
                         #------------------------
@@ -307,8 +316,9 @@ class  PyPlot_():
           # plt.figure(ax.figure.number)
         #   plt.sca(ax)
           plt_fn = getattr(ax,plt_fn_name)
+          title = kwargs.pop('title','')
           plt_fn(*args,**kwargs)
-          ax.set_title(name)
+          ax.set_title(title)
 
           plt.draw()
           #ax.imshow(*stuff)
@@ -398,6 +408,7 @@ def inkblot(axes_name,*args,**kwargs):
     ax = PyPlot.axes_dict[axes_name]
     ax.clear()
     xys = args
+    title = kwargs.pop('title','')
     c = kwargs.get('c','r')
     max_alpha = 1.
     n_pairs = len(xys)
@@ -406,5 +417,6 @@ def inkblot(axes_name,*args,**kwargs):
     for xy,a in zip(xys,alphas):
         x,y = xy
         ax.scatter(x,y,c=c,alpha=a)
+    ax.set_title(title)
     plt.draw()
     pass
